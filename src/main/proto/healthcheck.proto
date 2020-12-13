@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+package sample;
+
+import "google/protobuf/empty.proto";
+
+option java_package = "com.example";
+// controls naming of generated Java class if want something different than the service name
+//option java_outer_classname = "MyHealthcheck";
+
+/*
+ * Simple server with providing shallow and deep healthcheck methods
+ */
+service Healthcheck {
+    // source: https://developers.google.com/protocol-buffers/docs/reference/java/com/google/protobuf/Empty
+    rpc BasicHealthcheck(google.protobuf.Empty) returns (HealthStatus);
+
+    rpc DeepHealthcheck(google.protobuf.Empty) returns (DeepHealthStatus);
+}
+
+message HealthStatus {
+    string status = 1;
+}
+
+message DeepHealthStatus {
+    string status = 1;
+    Etcd db_health = 2;
+}
+
+message Etcd {
+    int32 nodeCount = 1;
+    repeated string upNodes = 2;
+    repeated string downNodes = 3;
+    string leaderId = 4;
+}
+
+enum StatusType {//can specify enum if fixed value set, also enum values are 0-based while messages are 1-based
+    OK = 0;
+    ERROR = 1;
+}
