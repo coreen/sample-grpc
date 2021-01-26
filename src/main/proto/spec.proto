@@ -1,0 +1,69 @@
+syntax = "proto3";
+
+option optimize_for = SPEED;
+option java_multiple_files = true;
+option java_package = "com.example";
+option java_outer_classname = "ItemServer";
+
+// list and CRUD calls
+service Spec {
+    rpc ListItems(ListItemsRequest) returns (ListItemsResponse);
+    rpc CreateItem(CreateItemRequest) returns (CreateItemResponse);
+    rpc GetItem(GetItemRequest) returns (GetItemResponse);
+    rpc UpdateItem(UpdateItemRequest) returns (UpdateItemResponse);
+    rpc DeleteItem(DeleteItemRequest) returns (DeleteItemResponse);
+}
+
+message ListItemsRequest {
+    string groupId = 1;
+}
+
+message ListItemsResponse {
+    repeated ItemBody items = 1;
+}
+
+message ItemBody {
+    string itemId = 1;
+    string groupId = 2;
+    float coreCount = 3;
+    int32 memorySizeInMBs = 4;
+}
+
+message CreateItemRequest {
+    ItemBody item = 1;
+}
+
+message CreateItemResponse {
+    ResponseCode responseCode = 1;
+}
+
+enum ResponseCode {
+    OK = 0;
+    ERROR = 1;
+}
+
+message GetItemRequest {
+    string groupId = 1;
+    string itemId = 2;
+}
+
+message GetItemResponse {
+    ItemBody item = 1;
+}
+
+message UpdateItemRequest {
+    ItemBody item = 1;
+}
+
+message UpdateItemResponse {
+    ResponseCode responseCode = 1;
+}
+
+message DeleteItemRequest {
+    string groupId = 1;
+    string itemId = 2;
+}
+
+message DeleteItemResponse {
+    ResponseCode responseCode = 1;
+}
