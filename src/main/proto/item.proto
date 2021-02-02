@@ -1,12 +1,14 @@
 syntax = "proto3";
 
+package com.example;
+
 option optimize_for = SPEED;
 option java_multiple_files = true;
-option java_package = "com.example";
-option java_outer_classname = "ItemServer";
+//option java_package = "com.example";
+//option java_outer_classname = "ItemService";
 
 // list and CRUD calls
-service Spec {
+service Item {
     rpc ListItems(ListItemsRequest) returns (ListItemsResponse);
     rpc CreateItem(CreateItemRequest) returns (CreateItemResponse);
     rpc GetItem(GetItemRequest) returns (GetItemResponse);

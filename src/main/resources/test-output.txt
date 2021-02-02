@@ -1,0 +1,48 @@
+➜  proto grpcurl -plaintext -proto item.proto -d '{"item": {"itemId": "item1", "groupId": "group1", "coreCount": 1.0, "memorySizeInMBs": 500}}' localhost:9090 com.example.Item/CreateItem
+{
+
+}
+➜  proto grpcurl -plaintext -proto item.proto -d '{"item": {"itemId": "item2", "groupId": "group1", "coreCount": 3.0, "memorySizeInMBs": 250}}' localhost:9090 com.example.Item/CreateItem
+{
+
+}
+➜  proto grpcurl -plaintext -proto item.proto -d '{"groupId": "group1"}' localhost:9090 com.example.Item/ListItems
+{
+  "items": [
+    {
+      "itemId": "item1",
+      "coreCount": 1,
+      "memorySizeInMBs": 500
+    },
+    {
+      "itemId": "item2",
+      "coreCount": 3,
+      "memorySizeInMBs": 250
+    }
+  ]
+}
+➜  proto grpcurl -plaintext -proto item.proto -d '{"groupId": "group1", "itemId": "item1"}' localhost:9090 com.example.Item/GetItem
+{
+  "item": {
+    "coreCount": 1,
+    "memorySizeInMBs": 500
+  }
+}
+➜  proto grpcurl -plaintext -proto item.proto -d '{"item": {"groupId": "group1", "itemId": "item2", "coreCount": 2.0}}' localhost:9090 com.example.Item/UpdateItem
+ERROR:
+  Code: InvalidArgument
+  Message: etcdserver: duplicate key given in txn request
+➜  proto grpcurl -plaintext -proto item.proto -d '{"groupId": "group1", "itemId": "item2"}' localhost:9090 com.example.Item/DeleteItem
+{
+
+}
+➜  proto grpcurl -plaintext -proto item.proto -d '{"groupId": "group1"}' localhost:9090 com.example.Item/ListItems
+{
+  "items": [
+    {
+      "itemId": "item1",
+      "coreCount": 1,
+      "memorySizeInMBs": 500
+    }
+  ]
+}

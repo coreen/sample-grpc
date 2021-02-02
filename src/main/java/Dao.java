@@ -1,3 +1,5 @@
+import com.fasterxml.jackson.annotation.JsonAutoDetect;
+import com.fasterxml.jackson.annotation.PropertyAccessor;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.ByteString;
@@ -32,18 +34,21 @@ public class Dao {
                 .withPlainText()
                 .build();
         kvClient = etcdClient.getKvClient();
+        // mapper needs to specify this since don't have default getters for model (lombok annotation)
+        // https://www.baeldung.com/jackson-jsonmappingexception
+        mapper.setVisibility(PropertyAccessor.FIELD, JsonAutoDetect.Visibility.ANY);
     }
 
     public List<ItemEntity> list(String groupId) {
-        RangeResponse response = kvClient.get(ByteString.copyFrom(groupId.getBytes())).asPrefix().sync();
-        response.getKvsList().stream()
+        final String prefix = String.format("groupId/%s", groupId);
+        RangeResponse response = kvClient.get(ByteString.copyFrom(prefix.getBytes())).asPrefix().sync();
+        return response.getKvsList().stream()
                 .map(keyValue -> valueFromJsonByteString(keyValue.getValue(), ItemEntity.class))
                 .collect(Collectors.toList());
-        return null;
     }
 
     public Optional<ItemEntity> get(KeyEntity key) {
-        RangeResponse response = kvClient.get(key.getByteString()).limit(1).sync();
+        RangeResponse response = kvClient.get(key.getItemByteString()).limit(1).sync();
         assert(response.getKvsCount() == 1);
         ByteString value = response.getKvs(0).getValue();
         return Optional.of(valueFromJsonByteString(value, ItemEntity.class));
@@ -54,7 +59,7 @@ public class Dao {
     }
 
     public ItemEntity insert(KeyEntity key, ItemEntity value) {
-        final ByteString bsKey = key.getByteString();
+        final ByteString bsKey = key.getItemByteString();
         kvClient.put(bsKey, valueToJsonByteString(value)).sync();
 
         // test if exists, return that deserialized entity
@@ -68,13 +73,15 @@ public class Dao {
      * Throws if entry does not exist, otherwise updates values to match provided ItemEntity (delete / recreate)
      */
     public ItemEntity update(KeyEntity key, ItemEntity updatedValue) {
-        final ByteString bsKey = key.getByteString();
+        final ByteString bsKey = key.getItemByteString();
         RangeResponse response = kvClient.get(bsKey).limit(1).sync();
         assert(response.getKvsCount() == 1); // entry should exist, AssertionError if not
 
         ByteString bsValue = response.getKvs(0).getValue();
         ItemEntity oldValue = valueFromJsonByteString(bsValue, ItemEntity.class);
 
+        // doesn't work as-is, error:
+        // Server - error occurred attempting to update key model.KeyEntity@78360a46 with value ItemEntity(itemId=null, coreCount=2.0, memorySizeInMBs=0) into etcd
         kvClient.batch()
                 .delete(DeleteRangeRequest.newBuilder().setKey(bsKey).build())
                 .put(PutRequest.newBuilder().setKey(bsKey).setValue(valueToJsonByteString(updatedValue)))
@@ -84,7 +91,7 @@ public class Dao {
     }
 
     public void delete(KeyEntity key) {
-        DeleteRangeResponse response = kvClient.delete(key.getByteString()).sync();
+        DeleteRangeResponse response = kvClient.delete(key.getItemByteString()).sync();
         assert(response.getDeleted() <= 1); // key should be unique to single entry, ok if doesn't exist
     }
 

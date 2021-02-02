@@ -28,6 +28,14 @@ TBD
 docker-compose up -d
 docker exec -it <etcdContainerId> bash
 $ etcdctl member list
+$ etcdctl get groupId/group1/itemId/item1
+
+===
+# grpcServer, note grpcurl bases path off "package" attribute in .proto file
+➜  proto grpcurl -plaintext -proto healthcheck.proto localhost:9090 sample.Healthcheck/BasicHealthcheck
+{
+  "status": "OK"
+}
 ```
 Links:
 * client test -- https://java-demos.blogspot.com/2018/12/persisting-key-value-in-etcd-using.html
@@ -67,5 +75,3 @@ etcd
 
 Ops
 * https://docs.okd.io/3.10/admin_guide/assembly_replace-etcd-member.html
-* https://etcd.io/docs/v3.4.0/learning/api/
-* https://etcd.io/docs/v3.4.0/op-guide/maintenance/

@@ -10,10 +10,12 @@
     <packaging>jar</packaging>
 
     <properties>
-        <grpc-version>1.28.1</grpc-version>
+        <grpc-version>1.33.1</grpc-version>
         <!-- The protoc-version must be less than or equal to the runtime version. -->
-        <protoc-version>3.6.1</protoc-version>
-        <protobuf-runtime-version>3.6.1</protobuf-runtime-version>
+        <protoc-version>3.12.0</protoc-version>
+        <protobuf-runtime-version>3.12.0</protobuf-runtime-version>
+
+        <etcd-version>0.0.18</etcd-version>
     </properties>
 
     <build>
@@ -26,6 +28,27 @@
         </extensions>
         <plugins>
             <plugin>
+              <!-- for detecting version mismatch for grpc
+              https://stackoverflow.com/questions/59880287/nosuchmethodexception-and-noclassdeffounderror-in-grpc-protobuf-java -->
+              <groupId>org.apache.maven.plugins</groupId>
+              <artifactId>maven-enforcer-plugin</artifactId>
+              <version>1.4.1</version>
+              <executions>
+                <execution>
+                  <id>enforce</id>
+                  <goals>
+                    <goal>enforce</goal>
+                  </goals>
+                  <configuration>
+                    <rules>
+                      <requireUpperBoundDeps/>
+                    </rules>
+                  </configuration>
+                </execution>
+              </executions>
+            </plugin>
+            <plugin>
+                <!-- generates the *.proto spec Java classes -->
                 <groupId>org.xolstice.maven.plugins</groupId>
                 <artifactId>protobuf-maven-plugin</artifactId>
                 <version>0.6.1</version>
@@ -53,6 +76,7 @@
                 </executions>
             </plugin>
             <plugin>
+                <!-- ensures Java 8 -->
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <configuration>
@@ -60,10 +84,35 @@
                     <target>8</target>
                 </configuration>
             </plugin>
+            <plugin>
+                <!-- Build an executable JAR -->
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.1.0</version>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <addClasspath>true</addClasspath>
+                            <classpathPrefix>lib/</classpathPrefix>
+                            <mainClass>com.example.Server</mainClass>
+                        </manifest>
+                    </archive>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
 
     <dependencies>
+<!--        <dependency>-->
+<!--            <groupId>io.grpc</groupId>-->
+<!--            <artifactId>grpc-context</artifactId>-->
+<!--            <version>${grpc-version}</version>-->
+<!--        </dependency>-->
+<!--        <dependency>-->
+<!--            <groupId>io.grpc</groupId>-->
+<!--            <artifactId>grpc-api</artifactId>-->
+<!--            <version>${grpc-version}</version>-->
+<!--        </dependency>-->
         <dependency>
             <groupId>io.grpc</groupId>
             <artifactId>grpc-protobuf</artifactId> <!-- grpc-protobuf-lite and grpc-protobuf-nano for Android use -->
@@ -75,11 +124,71 @@
             <groupId>io.grpc</groupId>
             <artifactId>grpc-stub</artifactId>
             <version>${grpc-version}</version>
+            <exclusions>
+              <exclusion>
+                <groupId>com.google.guava</groupId>
+                <artifactId>guava</artifactId>
+              </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>com.google.protobuf</groupId>
             <artifactId>protobuf-java</artifactId>
             <version>${protobuf-runtime-version}</version>
+        </dependency>
+        <!-- for reflection in grpc debugging -->
+        <dependency>
+            <groupId>io.grpc</groupId>
+            <artifactId>grpc-all</artifactId>
+            <version>${grpc-version}</version>
+            <exclusions>
+              <!-- from io.grpc:grpc-xds > io.opencensus:opencensus-proto -->
+              <exclusion>
+                <groupId>io.grpc</groupId>
+                <artifactId>grpc-protobuf</artifactId>
+              </exclusion>
+              <exclusion>
+                <groupId>io.grpc</groupId>
+                <artifactId>grpc-stub</artifactId>
+              </exclusion>
+            </exclusions>
+        </dependency>
+        <!-- slf4j logging, choose one of slf4j-simple OR slf4j-log4j12
+        https://stackoverflow.com/questions/7421612/slf4j-failed-to-load-class-org-slf4j-impl-staticloggerbinder -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>1.7.30</version>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-simple</artifactId>
+            <version>1.6.4</version>
+            <exclusions>
+              <exclusion>
+                <groupId>org.slf4j</groupId>
+                <artifactId>slf4j-api</artifactId>
+              </exclusion>
+            </exclusions>
+        </dependency>
+        <!-- WebTarget for testing etcd datastore connection via the localhost:2379/health endpoint -->
+        <dependency>
+            <groupId>javax.ws.rs</groupId>
+            <artifactId>javax.ws.rs-api</artifactId>
+            <version>2.1.1</version>
+        </dependency>
+        <!-- ClientBuilder used by ^^^ requires implementation
+        https://howtodoinjava.com/resteasy/solved-java-lang-classnotfoundexception-org-glassfish-jersey-client-jerseyclientbuilder/ -->
+        <dependency>
+            <groupId>org.jboss.resteasy</groupId>
+            <artifactId>resteasy-client</artifactId>
+            <version>3.0.2.Final</version>
+            <exclusions>
+              <exclusion>
+                <groupId>org.apache.httpcomponents</groupId>
+                <artifactId>httpclient</artifactId>
+              </exclusion>
+            </exclusions>
         </dependency>
         <!-- mapping from class to JSON string for ByteString protobuf format in etcd storage -->
         <dependency>
@@ -92,13 +201,46 @@
             <groupId>io.etcd</groupId>
             <artifactId>jetcd-core</artifactId>
             <version>0.5.4</version>
+            <exclusions>
+              <exclusion>
+                <groupId>com.google.guava</groupId>
+                <artifactId>guava</artifactId>
+              </exclusion>
+          </exclusions>
         </dependency>
         <!-- requires Java 8 or higher -->
         <dependency>
             <groupId>com.ibm.etcd</groupId>
             <artifactId>etcd-java</artifactId>
-            <version>0.0.18</version>
+            <version>${etcd-version}</version>
+            <exclusions>
+              <exclusion>
+                <groupId>com.google.guava</groupId>
+                <artifactId>guava</artifactId>
+              </exclusion>
+<!--              <exclusion>-->
+<!--                <groupId>io.netty</groupId>-->
+<!--                <artifactId>netty-common</artifactId>-->
+<!--              </exclusion>-->
+<!--              <exclusion>-->
+<!--                <groupId>io.netty</groupId>-->
+<!--                <artifactId>netty-buffer</artifactId>-->
+<!--              </exclusion>-->
+<!--              <exclusion>-->
+<!--                <groupId>io.netty</groupId>-->
+<!--                <artifactId>netty-transport</artifactId>-->
+<!--              </exclusion>-->
+<!--              <exclusion>-->
+<!--                <groupId>io.netty</groupId>-->
+<!--                <artifactId>netty-resolver</artifactId>-->
+<!--              </exclusion>-->
+            </exclusions>
         </dependency>
+<!--        <dependency>-->
+<!--            <groupId>io.grpc</groupId>-->
+<!--            <artifactId>grpc-netty</artifactId>-->
+<!--            <version>${grpc-version}</version>-->
+<!--        </dependency>-->
         <!-- builder -->
         <dependency>
             <groupId>org.projectlombok</groupId>
