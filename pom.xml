@@ -4,12 +4,15 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
+    <name>sample-grpc</name>
+
     <groupId>com.example</groupId>
     <artifactId>sample-grpc</artifactId>
     <version>1.0-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <properties>
+        <!-- version matching java-etcd dependency bundled version -->
         <grpc-version>1.33.1</grpc-version>
         <!-- The protoc-version must be less than or equal to the runtime version. -->
         <protoc-version>3.12.0</protoc-version>
@@ -20,6 +23,7 @@
 
     <build>
         <extensions>
+            <!-- for OS lookup calls in protobuf Java class generation -->
             <extension>
                 <groupId>kr.motd.maven</groupId>
                 <artifactId>os-maven-plugin</artifactId>
@@ -27,28 +31,28 @@
             </extension>
         </extensions>
         <plugins>
+            <!-- for detecting version mismatch for grpc
+            https://stackoverflow.com/questions/59880287/nosuchmethodexception-and-noclassdeffounderror-in-grpc-protobuf-java -->
             <plugin>
-              <!-- for detecting version mismatch for grpc
-              https://stackoverflow.com/questions/59880287/nosuchmethodexception-and-noclassdeffounderror-in-grpc-protobuf-java -->
-              <groupId>org.apache.maven.plugins</groupId>
-              <artifactId>maven-enforcer-plugin</artifactId>
-              <version>1.4.1</version>
-              <executions>
-                <execution>
-                  <id>enforce</id>
-                  <goals>
-                    <goal>enforce</goal>
-                  </goals>
-                  <configuration>
-                    <rules>
-                      <requireUpperBoundDeps/>
-                    </rules>
-                  </configuration>
-                </execution>
-              </executions>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <version>1.4.1</version>
+                <executions>
+                    <execution>
+                        <id>enforce</id>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <requireUpperBoundDeps/>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
+            <!-- generates the *.proto spec Java classes -->
             <plugin>
-                <!-- generates the *.proto spec Java classes -->
                 <groupId>org.xolstice.maven.plugins</groupId>
                 <artifactId>protobuf-maven-plugin</artifactId>
                 <version>0.6.1</version>
@@ -75,8 +79,8 @@
                     </execution>
                 </executions>
             </plugin>
+            <!-- ensures Java 8 -->
             <plugin>
-                <!-- ensures Java 8 -->
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <configuration>
@@ -84,35 +88,82 @@
                     <target>8</target>
                 </configuration>
             </plugin>
+            <!-- Creates the executable jar w/ all dependencies,
+                  2 jars created:
+                      ${project.name}-${project.version}.jar
+                      ${project.name}-${project.version}-pkg.jar -->
             <plugin>
-                <!-- Build an executable JAR -->
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-jar-plugin</artifactId>
-                <version>3.1.0</version>
+                <groupId>de.ntcomputer</groupId>
+                <artifactId>executable-packer-maven-plugin</artifactId>
+                <version>1.0.1</version>
                 <configuration>
-                    <archive>
-                        <manifest>
-                            <addClasspath>true</addClasspath>
-                            <classpathPrefix>lib/</classpathPrefix>
-                            <mainClass>com.example.Server</mainClass>
-                        </manifest>
-                    </archive>
+                    <mainClass>com.example.Server</mainClass>
                 </configuration>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>pack-executable-jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
+            <!--
+            The fatjar version is suffixed with "-pkg", but typical jar runs expect without the suffix.
+            So the "-pkg" version is copied to the desired jar file name, resulting in 2 jars being added
+            to the maven repo. Unfortunately the default-install step expects both jars to exist in the
+            maven build, so using the "executable-packer-maven-plugin" instead of "maven-shade-plugin"
+            results in duplicates being deployed.
+            -->
+            <plugin>
+                <groupId>org.codehaus.groovy.maven</groupId>
+                <artifactId>gmaven-plugin</artifactId>
+                <version>1.0</version>
+                <executions>
+                    <execution>
+                        <id>rename-primary-artifact</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>execute</goal>
+                        </goals>
+                        <configuration>
+                            <source>
+                                libFile = java.nio.file.Paths.get("./target/" + project.getName() + "-" + project.getVersion() + ".jar")
+                                execFile = java.nio.file.Paths.get("./target/" + project.getName() + "-" + project.getVersion() + "-pkg.jar")
+                                java.nio.file.Files.copy(execFile, libFile, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+//                                java.nio.file.Files.delete(execFile)
+                            </source>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <!-- A quick runtime test to confirm the resulting jar will run. Used for cli jars. -->
+<!--            <plugin>-->
+<!--                <groupId>org.codehaus.mojo</groupId>-->
+<!--                <artifactId>exec-maven-plugin</artifactId>-->
+<!--                <version>1.6.0</version>-->
+<!--                <executions>-->
+<!--                    <execution>-->
+<!--                        <phase>package</phase>-->
+<!--                        <goals>-->
+<!--                            <goal>exec</goal>-->
+<!--                        </goals>-->
+<!--                        <configuration>-->
+<!--                            <executable>java</executable>-->
+<!--                            <workingDirectory>./target</workingDirectory>-->
+<!--                            <arguments>-->
+<!--                                <argument>-jar</argument>-->
+<!--                                <argument>${project.name}-${project.version}.jar</argument>-->
+<!--                                <argument>&#45;&#45;help</argument>-->
+<!--                            </arguments>-->
+<!--                        </configuration>-->
+<!--                    </execution>-->
+<!--                </executions>-->
+<!--            </plugin>-->
         </plugins>
     </build>
 
     <dependencies>
-<!--        <dependency>-->
-<!--            <groupId>io.grpc</groupId>-->
-<!--            <artifactId>grpc-context</artifactId>-->
-<!--            <version>${grpc-version}</version>-->
-<!--        </dependency>-->
-<!--        <dependency>-->
-<!--            <groupId>io.grpc</groupId>-->
-<!--            <artifactId>grpc-api</artifactId>-->
-<!--            <version>${grpc-version}</version>-->
-<!--        </dependency>-->
         <dependency>
             <groupId>io.grpc</groupId>
             <artifactId>grpc-protobuf</artifactId> <!-- grpc-protobuf-lite and grpc-protobuf-nano for Android use -->
@@ -125,10 +176,10 @@
             <artifactId>grpc-stub</artifactId>
             <version>${grpc-version}</version>
             <exclusions>
-              <exclusion>
-                <groupId>com.google.guava</groupId>
-                <artifactId>guava</artifactId>
-              </exclusion>
+                <exclusion>
+                    <groupId>com.google.guava</groupId>
+                    <artifactId>guava</artifactId>
+                </exclusion>
             </exclusions>
         </dependency>
         <dependency>
@@ -142,15 +193,15 @@
             <artifactId>grpc-all</artifactId>
             <version>${grpc-version}</version>
             <exclusions>
-              <!-- from io.grpc:grpc-xds > io.opencensus:opencensus-proto -->
-              <exclusion>
-                <groupId>io.grpc</groupId>
-                <artifactId>grpc-protobuf</artifactId>
-              </exclusion>
-              <exclusion>
-                <groupId>io.grpc</groupId>
-                <artifactId>grpc-stub</artifactId>
-              </exclusion>
+                <!-- from io.grpc:grpc-xds > io.opencensus:opencensus-proto -->
+                <exclusion>
+                    <groupId>io.grpc</groupId>
+                    <artifactId>grpc-protobuf</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>io.grpc</groupId>
+                    <artifactId>grpc-stub</artifactId>
+                </exclusion>
             </exclusions>
         </dependency>
         <!-- slf4j logging, choose one of slf4j-simple OR slf4j-log4j12
@@ -165,10 +216,10 @@
             <artifactId>slf4j-simple</artifactId>
             <version>1.6.4</version>
             <exclusions>
-              <exclusion>
-                <groupId>org.slf4j</groupId>
-                <artifactId>slf4j-api</artifactId>
-              </exclusion>
+                <exclusion>
+                    <groupId>org.slf4j</groupId>
+                    <artifactId>slf4j-api</artifactId>
+                </exclusion>
             </exclusions>
         </dependency>
         <!-- WebTarget for testing etcd datastore connection via the localhost:2379/health endpoint -->
@@ -184,10 +235,10 @@
             <artifactId>resteasy-client</artifactId>
             <version>3.0.2.Final</version>
             <exclusions>
-              <exclusion>
-                <groupId>org.apache.httpcomponents</groupId>
-                <artifactId>httpclient</artifactId>
-              </exclusion>
+                <exclusion>
+                    <groupId>org.apache.httpcomponents</groupId>
+                    <artifactId>httpclient</artifactId>
+                </exclusion>
             </exclusions>
         </dependency>
         <!-- mapping from class to JSON string for ByteString protobuf format in etcd storage -->
@@ -196,51 +247,18 @@
             <artifactId>jackson-databind</artifactId>
             <version>2.12.0</version>
         </dependency>
-        <!-- needed to access Cluster and Maintenance services from etcd rpc.proto -->
-        <dependency>
-            <groupId>io.etcd</groupId>
-            <artifactId>jetcd-core</artifactId>
-            <version>0.5.4</version>
-            <exclusions>
-              <exclusion>
-                <groupId>com.google.guava</groupId>
-                <artifactId>guava</artifactId>
-              </exclusion>
-          </exclusions>
-        </dependency>
         <!-- requires Java 8 or higher -->
         <dependency>
             <groupId>com.ibm.etcd</groupId>
             <artifactId>etcd-java</artifactId>
             <version>${etcd-version}</version>
             <exclusions>
-              <exclusion>
-                <groupId>com.google.guava</groupId>
-                <artifactId>guava</artifactId>
-              </exclusion>
-<!--              <exclusion>-->
-<!--                <groupId>io.netty</groupId>-->
-<!--                <artifactId>netty-common</artifactId>-->
-<!--              </exclusion>-->
-<!--              <exclusion>-->
-<!--                <groupId>io.netty</groupId>-->
-<!--                <artifactId>netty-buffer</artifactId>-->
-<!--              </exclusion>-->
-<!--              <exclusion>-->
-<!--                <groupId>io.netty</groupId>-->
-<!--                <artifactId>netty-transport</artifactId>-->
-<!--              </exclusion>-->
-<!--              <exclusion>-->
-<!--                <groupId>io.netty</groupId>-->
-<!--                <artifactId>netty-resolver</artifactId>-->
-<!--              </exclusion>-->
+                <exclusion>
+                    <groupId>com.google.guava</groupId>
+                    <artifactId>guava</artifactId>
+                </exclusion>
             </exclusions>
         </dependency>
-<!--        <dependency>-->
-<!--            <groupId>io.grpc</groupId>-->
-<!--            <artifactId>grpc-netty</artifactId>-->
-<!--            <version>${grpc-version}</version>-->
-<!--        </dependency>-->
         <!-- builder -->
         <dependency>
             <groupId>org.projectlombok</groupId>
@@ -248,11 +266,6 @@
             <version>1.16.16</version>
         </dependency>
         <!-- Testing -->
-<!--        <dependency>-->
-<!--            <groupId>io.grpc</groupId>-->
-<!--            <artifactId>grpc-testing</artifactId>-->
-<!--            <version>1.35.0</version>-->
-<!--        </dependency>-->
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
@@ -260,5 +273,4 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
-
 </project>

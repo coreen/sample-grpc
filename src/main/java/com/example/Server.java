@@ -1,34 +1,16 @@
-import com.example.CreateItemRequest;
-import com.example.CreateItemResponse;
-import com.example.DeleteItemRequest;
-import com.example.DeleteItemResponse;
-import com.example.GetItemRequest;
-import com.example.GetItemResponse;
-import com.example.HealthcheckGrpc;
+package com.example;
+
 import com.example.HealthcheckOuterClass.DeepHealthStatus;
+import com.example.HealthcheckOuterClass.EtcdHealth;
 import com.example.HealthcheckOuterClass.HealthStatus;
-import com.example.ItemBody;
-import com.example.ItemGrpc;
-import com.example.ListItemsRequest;
-import com.example.ListItemsResponse;
-import com.example.ResponseCode;
-import com.example.UpdateItemRequest;
-import com.example.UpdateItemResponse;
-import com.google.protobuf.ByteString;
+import com.example.HealthcheckOuterClass.StatusType;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.Empty;
-import com.ibm.etcd.api.MaintenanceGrpc;
-import com.ibm.etcd.api.PutRequest;
-import com.ibm.etcd.client.EtcdClient;
-import com.ibm.etcd.client.KvStoreClient;
-import com.ibm.etcd.client.kv.EtcdKvClient;
-import com.ibm.etcd.client.kv.KvClient;
-import io.etcd.jetcd.Client;
 import io.grpc.ServerBuilder;
-import io.grpc.protobuf.services.ProtoReflectionService;
 import io.grpc.stub.StreamObserver;
 import lombok.extern.slf4j.Slf4j;
-import model.ItemEntity;
-import model.KeyEntity;
+import com.example.model.ItemEntity;
+import com.example.model.KeyEntity;
 
 import javax.ws.rs.client.ClientBuilder;
 import javax.ws.rs.client.WebTarget;
@@ -47,16 +29,34 @@ public class Server {
     https://github.com/fullstorydev/grpcurl
         requires reflection API to be enabled, or explicit *.proto filename (class based off specified package name)
         see SERVICE_NAME constant in target/generated-sources/protobuf/grpc-java folder files
+    need explicit "-emit-defaults" to display enum values
+        https://github.com/fullstorydev/grpcurl/issues/95
     ```
-    ➜  proto grpcurl -plaintext -proto healthcheck.proto localhost:9090 sample.Healthcheck/BasicHealthcheck
+    ➜  sample-grpc$ cd src/main/proto
+    ➜  proto$ grpcurl -emit-defaults -plaintext -proto healthcheck.proto localhost:9090 sample.Healthcheck/BasicHealthcheck
     {
       "status": "OK"
     }
-    ➜  proto grpcurl -plaintext -proto item.proto -d '{"item": {"itemId": "item1", "groupId": "group1", "coreCount": 1.0, "memorySizeInMBs": 500}}' localhost:9090 com.example.Item/CreateItem
+    ➜  proto$ grpcurl -emit-defaults -plaintext -proto healthcheck.proto localhost:9090 sample.Healthcheck/DeepHealthcheck
+    {
+      "status": "UNHEALTHY",
+      "dbHealth": {
+        "nodeCount": 1,
+        "upNodes": [
+
+        ],
+        "downNodes": [
+          "node1"
+        ],
+        "leaderId": "node1"
+      }
+    }
+    ➜  proto$ grpcurl -plaintext -proto item.proto -d '{"item": {"itemId": "item1", "groupId": "group1", "coreCount": 1.0, "memorySizeInMBs": 500}}' localhost:9090 com.example.Item/CreateItem
     ERROR:
       Code: Unknown
       Message:
     ```
+    ^^^ insertion call fails since etcd isn't up, only seen via deep healthcheck
     */
     public static void main(String[] args) {
         /**
@@ -69,48 +69,12 @@ public class Server {
                 .addService(new HealthcheckService())
                 .addService(new ItemService())
                 // https://github.com/grpc/grpc-java/blob/master/documentation/server-reflection-tutorial.md#enable-server-reflection
-                // reflection needed for grpcurl to not need to pass in the .proto file during call, requires newer grpc version
+                // ProtoReflectionService requires grpc v1.35.0 which is newer than etcd packaged v1.33.1
 //                .addService(ProtoReflectionService.newInstance())
                 .build();
-
-        // check connection to etcd datastore first
-//        WebTarget webTarget = ClientBuilder.newClient().target("http://localhost:2379");
-//        Response response = null;
-//        try {
-//            response = webTarget.path("health").request().get();
-//            if (response.getStatus() == 200) {
-//                String message = response.readEntity(String.class);
-//                System.out.println("Node Health: " + message);
-//                log.info("etcd connection all good");
-//            }
-//        } catch (Exception e) {
-//            log.error("something is wrong with connection to db", e);
-//        } finally {
-//            if (response != null) {
-//                response.close();
-//            }
-//        }
-
-        // temp etcd datastore test
-/*
-        Dao dao = new Dao();
-        KeyEntity key = KeyEntity.builder().groupId("gid").itemId("iid").build();
-        dao.insert(key,
-                ItemEntity.builder().coreCount(1.0f).memorySizeInMBs(500).build());
-        log.info("inserted entry");
-        log.info("retrieved key", dao.get(key));
- */
-//        final KvStoreClient etcdClient = EtcdClient.forEndpoint("localhost", 2379)
-//                .withPlainText()
-//                .build();
-//        KvClient kvClient = etcdClient.getKvClient();
-//        ByteString key = ByteString.copyFrom("testKey".getBytes());
-//        kvClient.put(key, ByteString.copyFrom("testValue".getBytes())).sync();
-//        log.info("inserted string key w/empty value");
-//        log.info("retrieved key: " + kvClient.get(key));
-
         try {
             grpcServer.start();
+            System.out.println("Started grpc server, awaiting calls...");
             grpcServer.awaitTermination();
         } catch (IOException|InterruptedException e) {
             e.printStackTrace();
@@ -123,36 +87,62 @@ public class Server {
     private static class HealthcheckService extends HealthcheckGrpc.HealthcheckImplBase {
         @Override
         public void basicHealthcheck(Empty request, StreamObserver<HealthStatus> responseObserver) {
-            final HealthStatus response = HealthStatus.newBuilder().setStatus("OK").build();
-            responseObserver.onNext(response);
+            responseObserver.onNext(HealthStatus.newBuilder()
+                    .setStatus(StatusType.OK)
+                    .build());
             responseObserver.onCompleted();
         }
 
         @Override
         public void deepHealthcheck(Empty request, StreamObserver<DeepHealthStatus> responseObserver) {
-            //1.get gRPC client to etcd
-//            EtcdClient etcd = getClient();
-            //2.convert etcd response into response for our client
-            //
-//            etcd.put(PutRequest.newBuilder()..build())
-//            etcd.watch(null);
-//            MaintenanceGrpc.MaintenanceImplBase
-        }
+            // check connection to etcd datastore, todo: extend for multi-node cluster
+            WebTarget webTarget = ClientBuilder.newClient().target("http://localhost:2379");
+            ObjectMapper mapper = new ObjectMapper();
+            Response response = null;
+            try {
+                response = webTarget.path("health").request().get();
+                if (response.getStatus() == 200) {
+                    String message = response.readEntity(String.class);
+                    EtcdHealthResponse etcd = mapper.readValue(message, EtcdHealthResponse.class);
+                    boolean isHealthy = Boolean.parseBoolean(etcd.getHealth());
+                    if (isHealthy) {
+                        responseObserver.onNext(DeepHealthStatus.newBuilder()
+                                .setStatus(StatusType.OK)
+                                .setDbHealth(EtcdHealth.newBuilder()
+                                        .setNodeCount(1)
+                                        .addUpNodes("node1")
+                                        .setLeaderId("node1").build())
+                                .build());
+                    } else {
+                        responseObserver.onNext(DeepHealthStatus.newBuilder()
+                                .setStatus(StatusType.UNHEALTHY)
+                                .setDbHealth(EtcdHealth.newBuilder()
+                                        .setNodeCount(1)
+                                        .addDownNodes("node1")
+                                        .setLeaderId("node1").build())
+                                .build());
+                    }
+                    responseObserver.onCompleted();
 
-        private Client getClient() {
-            // https://github.com/etcd-io/jetcd/tree/master/jetcd-examples
-            Client client = Client.builder().endpoints("http://127.0.0.1:2379").build();
-//            client.getMaintenanceClient().
-            return null;
-        }
+                    System.out.println("Node Healthy? " + isHealthy);
+                    log.info("etcd connection all good");
+                }
+            } catch (Exception e) {
+                log.error("something is wrong with connection to db", e);
 
-        private EtcdClient getKvClient() {
-            // The official etcd ports are 2379 for client requests and 2380 for peer communication.
-            // https://etcd.io/docs/v3.1.12/op-guide/configuration/
-            return EtcdClient.forEndpoint("localhost", 2379)
-//                    .withCredentials("name", "password")
-                    .withPlainText()
-                    .build();
+                responseObserver.onNext(DeepHealthStatus.newBuilder()
+                        .setStatus(StatusType.UNHEALTHY)
+                        .setDbHealth(EtcdHealth.newBuilder()
+                                .setNodeCount(1)
+                                .addDownNodes("node1")
+                                .setLeaderId("node1").build())
+                        .build());
+                responseObserver.onCompleted();
+            } finally {
+                if (response != null) {
+                    response.close();
+                }
+            }
         }
     }
 

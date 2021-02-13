@@ -1,4 +1,4 @@
-# Simple Healthcheck gRPC server w/ etcd deep check
+# Simple gRPC server w/ etcd
 
 Example gRPC setup for a server that displays:
 * Basic healthcheck
@@ -9,7 +9,7 @@ Example gRPC setup for a server that displays:
 ```
 {
   status: "UNHEALTHY",
-  db_health: {
+  dbHealth: {
     nodeCount: 3,
     upNodes: ["node1", "node3"],
     downNodes: ["node2"],
@@ -17,11 +17,23 @@ Example gRPC setup for a server that displays:
   }
 }
 ```
+* Items CRUD operations
+```
+// see resources > test-output.txt
+```
+
+## Prereqs
+* Docker for Mac
 
 ## Usage
-TBD
-* executable jar generated via `mvn clean install` and used in Dockerfile for app launch
-* docker-compose.yaml for etcd cluster setup (standalone to start) + server itself
+```
+mvn clean install
+// run server, IntelliJ com.example.Server.main()
+// OR
+java -jar target/sample-grpc-1.0-SNAPSHOT.jar
+```
+Note: deep healthcheck (healthcheck that validates etcd datastore health) requires local etcd docker to be running,
+      spun up with docker-compose.yaml
 
 ## Testing
 ```
@@ -32,7 +44,7 @@ $ etcdctl get groupId/group1/itemId/item1
 
 ===
 # grpcServer, note grpcurl bases path off "package" attribute in .proto file
-➜  proto grpcurl -plaintext -proto healthcheck.proto localhost:9090 sample.Healthcheck/BasicHealthcheck
+➜  proto grpcurl -emit-defaults -plaintext -proto healthcheck.proto localhost:9090 sample.Healthcheck/BasicHealthcheck
 {
   "status": "OK"
 }

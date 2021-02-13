@@ -1,12 +1,5 @@
 version: '3'
 services:
-#  server:
-#    build: .
-#    image: server:v0
-#    ports:
-#      - 9090:9090
-#    depends_on:
-#      - etcd
   # Docker: https://hub.docker.com/r/bitnami/etcd/
   # Compose: https://github.com/bitnami/bitnami-docker-etcd/
   etcd:

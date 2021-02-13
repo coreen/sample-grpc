@@ -1,3 +1,5 @@
+package com.example;
+
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.PropertyAccessor;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -10,8 +12,8 @@ import com.ibm.etcd.api.RangeResponse;
 import com.ibm.etcd.client.EtcdClient;
 import com.ibm.etcd.client.KvStoreClient;
 import com.ibm.etcd.client.kv.KvClient;
-import model.ItemEntity;
-import model.KeyEntity;
+import com.example.model.ItemEntity;
+import com.example.model.KeyEntity;
 
 import java.io.IOException;
 import java.util.List;
@@ -34,7 +36,7 @@ public class Dao {
                 .withPlainText()
                 .build();
         kvClient = etcdClient.getKvClient();
-        // mapper needs to specify this since don't have default getters for model (lombok annotation)
+        // mapper needs to specify this since don't have default getters for com.example.model (lombok annotation)
         // https://www.baeldung.com/jackson-jsonmappingexception
         mapper.setVisibility(PropertyAccessor.FIELD, JsonAutoDetect.Visibility.ANY);
     }
@@ -81,7 +83,7 @@ public class Dao {
         ItemEntity oldValue = valueFromJsonByteString(bsValue, ItemEntity.class);
 
         // doesn't work as-is, error:
-        // Server - error occurred attempting to update key model.KeyEntity@78360a46 with value ItemEntity(itemId=null, coreCount=2.0, memorySizeInMBs=0) into etcd
+        // com.example.Server - error occurred attempting to update key com.example.model.KeyEntity@78360a46 with value ItemEntity(itemId=null, coreCount=2.0, memorySizeInMBs=0) into etcd
         kvClient.batch()
                 .delete(DeleteRangeRequest.newBuilder().setKey(bsKey).build())
                 .put(PutRequest.newBuilder().setKey(bsKey).setValue(valueToJsonByteString(updatedValue)))

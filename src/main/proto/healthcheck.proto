@@ -19,15 +19,15 @@ service Healthcheck {
 }
 
 message HealthStatus {
-    string status = 1;
+    StatusType status = 1;
 }
 
 message DeepHealthStatus {
-    string status = 1;
-    Etcd db_health = 2;
+    StatusType status = 1;
+    EtcdHealth dbHealth = 2;
 }
 
-message Etcd {
+message EtcdHealth {
     int32 nodeCount = 1;
     repeated string upNodes = 2;
     repeated string downNodes = 3;
@@ -36,5 +36,5 @@ message Etcd {
 
 enum StatusType {//can specify enum if fixed value set, also enum values are 0-based while messages are 1-based
     OK = 0;
-    ERROR = 1;
+    UNHEALTHY = 1;
 }
