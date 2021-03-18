@@ -1,5 +1,6 @@
 package com.example;
 
+import com.example.model.ItemEntity;
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.PropertyAccessor;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -12,7 +13,6 @@ import com.ibm.etcd.api.RangeResponse;
 import com.ibm.etcd.client.EtcdClient;
 import com.ibm.etcd.client.KvStoreClient;
 import com.ibm.etcd.client.kv.KvClient;
-import com.example.model.ItemEntity;
 import com.example.model.KeyEntity;
 
 import java.io.IOException;
@@ -25,11 +25,11 @@ import java.util.stream.Collectors;
  * Key: composite => groupId/itemId
  * Value: JSON blob of everything else
  */
-public class Dao {
+public class ItemDao {
     private final ObjectMapper mapper = new ObjectMapper();
     private KvClient kvClient;
 
-    public Dao() {
+    public ItemDao() {
         // The official etcd ports are 2379 for client requests and 2380 for peer communication.
         // https://etcd.io/docs/v3.1.12/op-guide/configuration/
         final KvStoreClient etcdClient = EtcdClient.forEndpoint("localhost", 2379)
@@ -83,7 +83,7 @@ public class Dao {
         ItemEntity oldValue = valueFromJsonByteString(bsValue, ItemEntity.class);
 
         // doesn't work as-is, error:
-        // com.example.Server - error occurred attempting to update key com.example.model.KeyEntity@78360a46 with value ItemEntity(itemId=null, coreCount=2.0, memorySizeInMBs=0) into etcd
+        // com.example.App - error occurred attempting to update key com.example.model.KeyEntity@78360a46 with value ItemEntity(itemId=null, coreCount=2.0, memorySizeInMBs=0) into etcd
         kvClient.batch()
                 .delete(DeleteRangeRequest.newBuilder().setKey(bsKey).build())
                 .put(PutRequest.newBuilder().setKey(bsKey).setValue(valueToJsonByteString(updatedValue)))

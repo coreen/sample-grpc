@@ -28,7 +28,7 @@ Example gRPC setup for a server that displays:
 ## Usage
 ```
 mvn clean install
-// run server, IntelliJ com.example.Server.main()
+// run server, IntelliJ com.example.App.main()
 // OR
 java -jar target/sample-grpc-1.0-SNAPSHOT.jar
 ```

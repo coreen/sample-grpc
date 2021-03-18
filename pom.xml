@@ -97,7 +97,7 @@
                 <artifactId>executable-packer-maven-plugin</artifactId>
                 <version>1.0.1</version>
                 <configuration>
-                    <mainClass>com.example.Server</mainClass>
+                    <mainClass>com.example.App</mainClass>
                 </configuration>
                 <executions>
                     <execution>
@@ -204,6 +204,13 @@
                 </exclusion>
             </exclusions>
         </dependency>
+        <!-- testing grpc server -->
+        <dependency>
+            <groupId>io.grpc</groupId>
+            <artifactId>grpc-testing</artifactId>
+            <version>${grpc-version}</version>
+            <scope>test</scope>
+        </dependency>
         <!-- slf4j logging, choose one of slf4j-simple OR slf4j-log4j12
         https://stackoverflow.com/questions/7421612/slf4j-failed-to-load-class-org-slf4j-impl-staticloggerbinder -->
         <dependency>
@@ -270,6 +277,18 @@
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
             <version>4.12</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <version>3.15.0</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <version>3.3.0</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
